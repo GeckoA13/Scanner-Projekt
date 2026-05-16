@@ -665,7 +665,6 @@
     const video     = document.getElementById('video');
     const canvas    = document.getElementById('canvas');
     const btnSnap   = document.getElementById('btn-snap');
-    const btnCam    = document.getElementById('btn-cam');
     const btnOff    = document.getElementById('btn-off');
     const statusDot = document.getElementById('status-dot');
     const statusTxt = document.getElementById('status-text');
@@ -785,12 +784,6 @@
     });
 
     btnSnap.addEventListener('click', takePhoto);
-
-    btnCam.addEventListener('click', async () => {
-      if (devices.length < 2) return;
-      currentDeviceIdx = (currentDeviceIdx + 1) % devices.length;
-      await startCamera(devices[currentDeviceIdx].deviceId);
-    });
 
     btnOff.addEventListener('click', async () => {
       if (stream) {
