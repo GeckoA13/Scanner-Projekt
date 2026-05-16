@@ -138,6 +138,18 @@
     }
     #btn-cam:hover { background: var(--surface2); color: var(--text); }
 
+    #btn-off {
+      background: var(--surface);
+      color: var(--red);
+      border: 1px solid var(--red);
+    }
+    #btn-off:hover { background: rgba(239,68,68,0.12); }
+    #btn-off.off {
+      color: var(--green);
+      border-color: var(--green);
+    }
+    #btn-off.off:hover { background: rgba(34,197,94,0.12); }
+
     /* Cards */
     #gallery, #objects-panel, #scene-panel, #codes-panel, #color-panel {
       width: 100%;
@@ -607,6 +619,7 @@
   <div class="controls">
     <button id="btn-snap" disabled>&#9679; Aufnehmen</button>
     <button id="btn-cam">&#8635; Wechseln</button>
+    <button id="btn-off">&#9209; Ausschalten</button>
   </div>
 
   <div id="gallery">
@@ -654,6 +667,7 @@
     const canvas    = document.getElementById('canvas');
     const btnSnap   = document.getElementById('btn-snap');
     const btnCam    = document.getElementById('btn-cam');
+    const btnOff    = document.getElementById('btn-off');
     const statusDot = document.getElementById('status-dot');
     const statusTxt = document.getElementById('status-text');
     const grid      = document.getElementById('gallery-grid');
@@ -777,6 +791,23 @@
       if (devices.length < 2) return;
       currentDeviceIdx = (currentDeviceIdx + 1) % devices.length;
       await startCamera(devices[currentDeviceIdx].deviceId);
+    });
+
+    btnOff.addEventListener('click', async () => {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+        video.srcObject = null;
+        statusDot.className = '';
+        statusTxt.textContent = 'Ausgeschaltet';
+        btnSnap.disabled = true;
+        btnOff.textContent = '▶ Einschalten';
+        btnOff.classList.add('off');
+      } else {
+        btnOff.textContent = '⏹ Ausschalten';
+        btnOff.classList.remove('off');
+        await startCamera(devices[currentDeviceIdx]?.deviceId || null);
+      }
     });
 
     document.addEventListener('keydown', (e) => {
