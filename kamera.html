@@ -68,7 +68,6 @@
       display: block;
       width: 100%;
       height: auto;
-      transform: scaleX(-1);
     }
 
     .scan-line { display: none; }
@@ -842,14 +841,12 @@
 
       overlayCtx.font = 'bold 13px Segoe UI, sans-serif';
 
-      const vw = video.videoWidth;
-
       for (const pred of latestPredictions) {
         const [bx, by, bw, bh] = pred.bbox;
         const color = classColor(pred.class);
         const label = `${DE[pred.class] || pred.class}  ${Math.round(pred.score * 100)}%`;
 
-        const rx = (vw - bx - bw) * sx, ry = by * sy, rw = bw * sx, rh = bh * sy;
+        const rx = bx * sx, ry = by * sy, rw = bw * sx, rh = bh * sy;
 
         overlayCtx.strokeStyle = color;
         overlayCtx.lineWidth = 2;
@@ -864,7 +861,7 @@
 
       for (const code of latestBarcodes) {
         const { x, y, width, height } = code.boundingBox;
-        const rx = (vw - x - width) * sx, ry = y * sy, rw = width * sx, rh = height * sy;
+        const rx = x * sx, ry = y * sy, rw = width * sx, rh = height * sy;
 
         overlayCtx.strokeStyle = '#2ecc71';
         overlayCtx.lineWidth = 3;
@@ -883,7 +880,7 @@
         const { x, y, width, height } = det.box;
         const score = Math.round(det.score * 100);
         const lbl = `${det.label}  ${score}%`;
-        const rx = (vw - x - width) * sx, ry = y * sy, rw = width * sx, rh = height * sy;
+        const rx = x * sx, ry = y * sy, rw = width * sx, rh = height * sy;
 
         overlayCtx.strokeStyle = '#3b82f6';
         overlayCtx.lineWidth = 2;
@@ -902,7 +899,7 @@
 
     async function detectObjects() {
       if (detectionModel && stream && video.readyState >= 2) {
-        const predictions = await detectionModel.detect(video, 50, 0.25);
+        const predictions = await detectionModel.detect(video, 50, 0.35);
         latestPredictions = predictions;
         renderOverlay();
         const list = document.getElementById('objects-list');
@@ -1511,190 +1508,80 @@
 
     analyzeColors();
 
-    // ── Erweiterte Erkennung (MobileNet, 1000 ImageNet-Klassen) ──────────
+    // ── Erweiterte Erkennung (MobileNet) ──────────
     const SCENE_LABELS = {
-      // Schreibwaren & Büro
-      'ballpoint': 'Kugelschreiber', 'ballpen': 'Kugelschreiber', 'ballpoint pen': 'Kugelschreiber',
-      'pencil': 'Bleistift', 'pencil box': 'Mäppchen', 'pencil case': 'Mäppchen',
+      // Büro & Schreibwaren
+      'pencil': 'Bleistift', 'pencil case': 'Mäppchen',
       'rubber eraser': 'Radiergummi', 'pencil sharpener': 'Anspitzer',
-      'paper knife': 'Brieföffner', 'letter opener': 'Brieföffner',
-      'paper clip': 'Büroklammer', 'binder clip': 'Klammer',
-      'binder': 'Ordner', 'ring binder': 'Ordner', 'ring-binder': 'Ordner',
-      'envelope': 'Briefumschlag',
-      'stapler': 'Heftgerät', 'paper stapler': 'Heftgerät',
-      'calculator': 'Taschenrechner',
-      'computer keyboard': 'Tastatur', 'typewriter keyboard': 'Tastatur',
-      'notebook': 'Notizheft', 'notebook computer': 'Laptop',
-      'comic book': 'Comic',
+      'paper clip': 'Büroklammer', 'binder': 'Ordner', 'ring binder': 'Ordner',
+      'envelope': 'Briefumschlag', 'stapler': 'Heftgerät',
+      'calculator': 'Taschenrechner', 'computer keyboard': 'Tastatur',
+      'notebook': 'Notizheft',
       // Lampen & Beleuchtung
       'table lamp': 'Tischlampe', 'desk lamp': 'Schreibtischlampe',
-      'anglepoise lamp': 'Schreibtischlampe', 'floor lamp': 'Stehlampe',
-      'spotlight': 'Scheinwerfer', 'torch': 'Taschenlampe', 'flashlight': 'Taschenlampe',
-      'candle': 'Kerze', 'candelabra': 'Kerzenhalter', 'lantern': 'Laterne',
-      // Elektronik & Geräte
+      'floor lamp': 'Stehlampe', 'torch': 'Taschenlampe', 'flashlight': 'Taschenlampe',
+      'candle': 'Kerze',
+      // Elektronik
       'laptop': 'Laptop', 'monitor': 'Monitor', 'desktop computer': 'Desktop-PC',
-      'hard disc': 'Festplatte', 'hard disk': 'Festplatte', 'modem': 'Modem',
-      'cellular telephone': 'Handy', 'mobile phone': 'Handy', 'cell phone': 'Handy',
-      'telephone': 'Telefon', 'pay-phone': 'Münztelefon',
-      'remote control': 'Fernbedienung', 'television': 'Fernseher', 'radio': 'Radio',
-      'printer': 'Drucker', 'polaroid camera': 'Sofortbildkamera', 'reflex camera': 'Spiegelreflexkamera',
-      'digital clock': 'Digitaluhr', 'wall clock': 'Wanduhr', 'analog clock': 'Analoguhr',
-      'pendulum clock': 'Pendeluhr',
-      'electric fan': 'Ventilator', 'ceiling fan': 'Deckenventilator',
-      'projector': 'Projektor', 'power strip': 'Steckdosenleiste',
-      'ipod': 'iPod', 'joystick': 'Joystick',
+      'cellular telephone': 'Handy', 'mobile phone': 'Handy',
+      'telephone': 'Telefon', 'television': 'Fernseher', 'radio': 'Radio',
+      'remote control': 'Fernbedienung', 'printer': 'Drucker',
+      'electric fan': 'Ventilator', 'projector': 'Projektor',
+      'digital clock': 'Digitaluhr', 'wall clock': 'Wanduhr',
+      'joystick': 'Joystick', 'power strip': 'Steckdosenleiste',
       // Möbel & Wohnen
-      'rocking chair': 'Schaukelstuhl', 'folding chair': 'Klappstuhl',
-      'throne': 'Thron', 'studio couch': 'Schlafsofa', 'bookcase': 'Bücherregal',
-      'wardrobe': 'Kleiderschrank', 'chest': 'Truhe', 'filing cabinet': 'Aktenschrank',
-      'bunk bed': 'Etagenbett',
-      'pillow': 'Kissen', 'cushion': 'Kissen', 'sleeping bag': 'Schlafsack',
-      'blanket': 'Decke', 'quilt': 'Bettdecke',
-      'mirror': 'Spiegel',
-      'window shade': 'Rollo', 'curtain': 'Vorhang', 'shower curtain': 'Duschvorhang',
-      'picture frame': 'Bilderrahmen', 'rug': 'Teppich', 'doormat': 'Fußmatte',
-      'lamp shade': 'Lampenschirm', 'bannister': 'Treppengeländer',
+      'bookcase': 'Bücherregal', 'wardrobe': 'Kleiderschrank',
+      'pillow': 'Kissen', 'mirror': 'Spiegel', 'curtain': 'Vorhang',
+      'picture frame': 'Bilderrahmen', 'rug': 'Teppich',
+      'rocking chair': 'Schaukelstuhl',
       // Kleidung & Accessoires
-      'jersey': 'Pullover', 'sweatshirt': 'Sweatshirt', 'tee shirt': 'T-Shirt', 't-shirt': 'T-Shirt',
-      'jean': 'Jeans', 'miniskirt': 'Minirock', 'bikini': 'Bikini',
-      'swimming trunks': 'Badehose', 'brassiere': 'BH',
-      'lab coat': 'Laborkittel', 'suit': 'Anzug', 'cloak': 'Umhang',
-      'trench coat': 'Trenchcoat', 'fur coat': 'Pelzmantel', 'poncho': 'Poncho',
-      'gown': 'Kleid', 'kimono': 'Kimono', 'bow tie': 'Fliege',
-      'cowboy hat': 'Cowboyhut', 'sombrero': 'Sombrero', 'bonnet': 'Haube',
-      'mortar board': 'Doktorhut', 'crash helmet': 'Sturzhelm', 'bathing cap': 'Badekappe',
-      'sock': 'Socke', 'stocking': 'Strumpf',
-      'sandal': 'Sandale', 'clog': 'Holzschuh', 'loafer': 'Loafer',
-      'running shoe': 'Laufschuh', 'tennis shoe': 'Turnschuh', 'stiletto heel': 'Stöckelschuh',
-      'sunglasses': 'Sonnenbrille', 'sunglass': 'Sonnenbrille', 'goggle': 'Schutzbrille',
-      'mask': 'Maske', 'wallet': 'Portemonnaie', 'purse': 'Geldbeutel',
-      'parachute': 'Fallschirm', 'wristwatch': 'Armbanduhr',
+      'sweatshirt': 'Sweatshirt', 'tee shirt': 'T-Shirt', 't-shirt': 'T-Shirt',
+      'jean': 'Jeans', 'suit': 'Anzug', 'cowboy hat': 'Cowboyhut',
+      'crash helmet': 'Sturzhelm', 'sunglasses': 'Sonnenbrille',
+      'wristwatch': 'Armbanduhr', 'wallet': 'Portemonnaie',
       // Küche & Haushalt
       'coffee mug': 'Kaffeebecher', 'beer glass': 'Bierglas',
       'wine bottle': 'Weinflasche', 'beer bottle': 'Bierflasche', 'water bottle': 'Wasserflasche',
-      'pop bottle': 'Limonadenflasche', 'medicine bottle': 'Medizinflasche',
-      'milk can': 'Milchkanne', 'can opener': 'Dosenöffner', 'corkscrew': 'Korkenzieher',
-      'ladle': 'Suppenlöffel', 'frying pan': 'Bratpfanne', 'wok': 'Wok',
-      'pressure cooker': 'Schnellkochtopf', 'colander': 'Sieb',
-      'mixing bowl': 'Rührschüssel', 'spatula': 'Pfannenwender',
-      'wooden spoon': 'Holzlöffel', 'whisk': 'Schneebesen',
-      'rolling pin': 'Nudelholz', 'grater': 'Reibe',
-      'waffle iron': 'Waffeleisen', 'espresso maker': 'Espressomaschine',
-      'coffeepot': 'Kaffeekanne', 'teapot': 'Teekanne',
-      'pitcher': 'Krug', 'carafe': 'Karaffe',
-      'saltshaker': 'Salzstreuer', 'pepper pot': 'Pfefferstreuer',
-      'dishwasher': 'Geschirrspüler',
+      'frying pan': 'Bratpfanne', 'wok': 'Wok', 'teapot': 'Teekanne',
+      'coffeepot': 'Kaffeekanne', 'pitcher': 'Krug',
+      'can opener': 'Dosenöffner', 'dishwasher': 'Geschirrspüler',
       // Lebensmittel
       'lemon': 'Zitrone', 'orange': 'Orange', 'banana': 'Banane',
       'strawberry': 'Erdbeere', 'apple': 'Apfel', 'pineapple': 'Ananas',
-      'fig': 'Feige', 'cucumber': 'Gurke', 'artichoke': 'Artischocke',
-      'broccoli': 'Brokkoli', 'cauliflower': 'Blumenkohl', 'corn': 'Mais',
-      'head cabbage': 'Kohl', 'mushroom': 'Pilz', 'zucchini': 'Zucchini',
-      'pizza': 'Pizza', 'hamburger': 'Burger', 'hotdog': 'Hotdog',
-      'pretzel': 'Brezel', 'bagel': 'Bagel', 'french loaf': 'Baguette',
-      'cheeseburger': 'Cheeseburger',
-      // Sport, Musik & Freizeit
-      'dumbbell': 'Hantel', 'barbell': 'Langhantel', 'punching bag': 'Boxsack',
-      'ping-pong ball': 'Tischtennisball', 'tennis ball': 'Tennisball',
-      'golf ball': 'Golfball', 'volleyball': 'Volleyball', 'basketball': 'Basketball',
-      'soccer ball': 'Fußball', 'rugby ball': 'Rugbyball', 'baseball': 'Baseball',
-      'ping-pong paddle': 'Tischtennisschläger', 'pool table': 'Billardtisch',
-      'jigsaw puzzle': 'Puzzle',
+      'cucumber': 'Gurke', 'broccoli': 'Brokkoli', 'mushroom': 'Pilz',
+      'corn': 'Mais', 'pizza': 'Pizza', 'hamburger': 'Burger',
+      'pretzel': 'Brezel', 'bagel': 'Bagel',
+      // Sport & Musik
+      'dumbbell': 'Hantel', 'barbell': 'Langhantel',
       'guitar': 'Gitarre', 'electric guitar': 'Elektrogitarre',
-      'violin': 'Geige', 'cello': 'Cello', 'piano': 'Klavier',
-      'grand piano': 'Flügel', 'drum': 'Schlagzeug', 'banjo': 'Banjo',
-      'harmonica': 'Mundharmonika', 'flute': 'Flöte',
-      'french horn': 'Waldhorn', 'trombone': 'Posaune',
-      'trumpet': 'Trompete', 'saxophone': 'Saxophon',
+      'violin': 'Geige', 'piano': 'Klavier', 'grand piano': 'Flügel',
+      'drum': 'Schlagzeug', 'trumpet': 'Trompete', 'saxophone': 'Saxophon',
       // Natur & Deko
-      'flower pot': 'Blumentopf', 'pot': 'Blumentopf',
-      'daisy': 'Gänseblümchen', 'sunflower': 'Sonnenblume',
-      'rose': 'Rose', 'tulip': 'Tulpe',
-      // Werkzeug
+      'flower pot': 'Blumentopf', 'sunflower': 'Sonnenblume', 'rose': 'Rose',
+      // Werkzeug & Haushalt
       'hammer': 'Hammer', 'screwdriver': 'Schraubenzieher',
-      'wrench': 'Schraubenschlüssel', 'pliers': 'Zange',
-      'drill': 'Bohrmaschine', 'saw': 'Säge',
-      'chain saw': 'Kettensäge', 'axe': 'Axt',
-      'shovel': 'Schaufel', 'hatchet': 'Beil',
-      'bucket': 'Eimer', 'mop': 'Mopp', 'broom': 'Besen',
-      'washing machine': 'Waschmaschine', 'sewing machine': 'Nähmaschine',
-      'iron': 'Bügeleisen',
+      'wrench': 'Schraubenschlüssel', 'drill': 'Bohrmaschine', 'saw': 'Säge',
+      'bucket': 'Eimer', 'broom': 'Besen',
+      'washing machine': 'Waschmaschine', 'iron': 'Bügeleisen',
       // Medizin
-      'syringe': 'Spritze', 'stethoscope': 'Stethoskop',
-      'bandage': 'Verband', 'thermometer': 'Thermometer',
-      // Bildschirm & Audio
-      'screen': 'Bildschirm', 'crt screen': 'Bildschirm', 'home theater': 'Heimkino',
+      'syringe': 'Spritze', 'thermometer': 'Thermometer', 'bandage': 'Verband',
+      // Audio
       'loudspeaker': 'Lautsprecher', 'speaker': 'Lautsprecher',
-      'microphone': 'Mikrofon', 'mike': 'Mikrofon', 'tripod': 'Stativ',
-      'cd player': 'CD-Player', 'tape player': 'Kassettenrekorder',
-      'compact disc': 'CD', 'compact disk': 'CD',
-      // Haushalt & Hygiene
-      'switch': 'Lichtschalter', 'electric switch': 'Lichtschalter',
-      'wall plug': 'Steckdose', 'electric outlet': 'Steckdose',
-      'paper towel': 'Papiertuch', 'toilet paper': 'Toilettenpapier', 'toilet tissue': 'Toilettenpapier',
-      'tissue': 'Taschentuch', 'kleenex': 'Taschentuch',
-      'soap dispenser': 'Seifenspender', 'plastic bag': 'Plastiktüte', 'polybag': 'Plastiktüte',
-      'trash can': 'Mülleimer', 'dustbin': 'Mülleimer', 'wastebin': 'Papierkorb',
-      'garbage can': 'Mülleimer', 'ashcan': 'Mülleimer',
-      'crib': 'Kinderbett', 'cot': 'Feldbett', 'cradle': 'Wiege',
-      // Körperpflege & Kosmetik
-      'comb': 'Kamm', 'hair dryer': 'Föhn', 'blow dryer': 'Föhn', 'blow drier': 'Föhn',
-      'lipstick': 'Lippenstift', 'lip rouge': 'Lippenstift',
-      'nail polish': 'Nagellack', 'nail enamel': 'Nagellack',
-      'sunscreen': 'Sonnencreme', 'sunblock': 'Sonnencreme',
-      'lotion': 'Lotion', 'face powder': 'Puder', 'hair spray': 'Haarspray',
-      // Schloss & Schlüssel
+      'microphone': 'Mikrofon', 'tripod': 'Stativ',
+      // Hygiene & Körperpflege
+      'toilet paper': 'Toilettenpapier', 'soap dispenser': 'Seifenspender',
+      'trash can': 'Mülleimer', 'garbage can': 'Mülleimer',
+      'comb': 'Kamm', 'hair dryer': 'Föhn', 'lipstick': 'Lippenstift',
+      // Schlüssel & Schloss
       'key': 'Schlüssel', 'padlock': 'Vorhängeschloss',
-      'combination lock': 'Kombinationsschloss', 'hook': 'Haken',
-      // Sonstiges Allgemein
-      'packet': 'Päckchen', 'web site': 'Webseite', 'website': 'Webseite',
-      'dial': 'Wähltastatur', 'band aid': 'Pflaster',
-      'neck tie': 'Krawatte', 'necktie': 'Krawatte', 'tie': 'Krawatte',
-      'jersey': 'Trikot', 'cardigan': 'Strickjacke', 'abaya': 'Abaja',
-      'academic gown': 'Robe', 'hoopskirt': 'Reifrock',
-      'overskirt': 'Überrock', 'vestment': 'Messgewand',
-      'diaper': 'Windel', 'bib': 'Lätzchen',
-      'apron': 'Schürze', 'lab coat': 'Laborkittel',
-      'hard hat': 'Schutzhelm', 'helmet': 'Helm',
-      'shield': 'Schild', 'holster': 'Holster',
-      'chain mail': 'Kettenhemd', 'breastplate': 'Brustpanzer',
-      'backpack': 'Rucksack', 'suitcase': 'Koffer',
-      'tote bag': 'Tragetasche', 'shopping bag': 'Einkaufstasche',
-      'mailbag': 'Posttasche', 'shoulder bag': 'Umhängetasche',
-      'coin': 'Münze', 'paper money': 'Geldschein', 'credit card': 'Kreditkarte',
-      'envelope': 'Briefumschlag',
-      'matchstick': 'Streichholz', 'lighter': 'Feuerzeug',
-      'cork': 'Korken', 'bottle cap': 'Flaschenverschluss',
-      'measuring stick': 'Messstab', 'tape measure': 'Maßband',
-      'rubber': 'Gummi', 'rubber band': 'Gummiband',
-      'string': 'Schnur', 'rope': 'Seil', 'chain': 'Kette', 'wire': 'Draht',
-      'nail': 'Nagel', 'screw': 'Schraube', 'bolt': 'Bolzen',
-      'nut': 'Mutter', 'washer': 'Unterlegscheibe',
-      'hinge': 'Scharnier', 'knob': 'Knauf', 'handle': 'Griff',
-      'drawer': 'Schublade', 'cupboard': 'Schrank', 'cabinet': 'Schrank',
-      'shelf': 'Regal', 'drawer': 'Schublade',
-      'picture frame': 'Bilderrahmen', 'poster': 'Poster',
-      'whiteboard': 'Whiteboard', 'blackboard': 'Tafel', 'chalkboard': 'Tafel',
-      'globe': 'Globus', 'map': 'Landkarte', 'atlas': 'Atlas',
+      // Sonstiges
       'newspaper': 'Zeitung', 'magazine': 'Zeitschrift',
-      'pamphlet': 'Broschüre', 'brochure': 'Broschüre',
-      'label': 'Etikett', 'tag': 'Anhänger',
-      'banner': 'Banner', 'flag': 'Flagge',
-      'clock': 'Uhr', 'hourglass': 'Sanduhr', 'stopwatch': 'Stoppuhr',
-      'scale': 'Waage', 'balance': 'Waage',
-      'magnifying glass': 'Lupe', 'binoculars': 'Fernglas', 'telescope': 'Teleskop',
-      'microscope': 'Mikroskop', 'test tube': 'Reagenzglas',
-      'beaker': 'Becherglas', 'flask': 'Kolben',
-      'canteen': 'Feldflasche', 'thermos': 'Thermoskanne',
-      'lunch box': 'Lunchbox', 'tray': 'Tablett',
-      'funnel': 'Trichter', 'hopper': 'Trichter',
-      'spool': 'Spule', 'spindle': 'Spindel',
-      'bow': 'Bogen', 'arrow': 'Pfeil', 'dart': 'Dartpfeil',
-      'yo-yo': 'Jo-Jo', 'kite': 'Drachen',
-      'balloon': 'Luftballon',
-      'piggy bank': 'Sparschwein',
-      'abacus': 'Abakus',
-      'slide rule': 'Rechenschieber',
+      'clock': 'Uhr', 'hourglass': 'Sanduhr',
+      'magnifying glass': 'Lupe', 'binoculars': 'Fernglas',
+      'balloon': 'Luftballon', 'coin': 'Münze',
+      'lighter': 'Feuerzeug', 'matchstick': 'Streichholz',
+      'whiteboard': 'Whiteboard', 'blackboard': 'Tafel',
+      'globe': 'Globus', 'piggy bank': 'Sparschwein',
     };
 
     function translateScene(className) {
@@ -1770,7 +1657,7 @@
             cellCtx.drawImage(video, col * cw, row * ch, cw, ch, 0, 0, 224, 224);
             try {
               const preds = await sceneModel.classify(cellCanvas, 1);
-              if (preds.length && preds[0].probability >= 0.4) {
+              if (preds.length && preds[0].probability >= 0.5) {
                 boxes.push({
                   label: translateScene(preds[0].className),
                   score: preds[0].probability,
