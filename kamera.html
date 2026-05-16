@@ -1,0 +1,1797 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scanner</title>
+  <style>
+    :root {
+      --bg:       #0b0e17;
+      --surface:  #111827;
+      --surface2: #1a2035;
+      --border:   #1e2d3d;
+      --border2:  #2a3f54;
+      --green:    #22c55e;
+      --green-glow: rgba(34,197,94,0.25);
+      --red:      #ef4444;
+      --blue:     #3b82f6;
+      --text:     #f1f5f9;
+      --muted:    #64748b;
+      --dim:      #334155;
+      --radius:   10px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 28px 16px;
+      gap: 18px;
+    }
+
+    h1 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      color: var(--muted);
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h1::before {
+      content: '';
+      width: 8px; height: 8px;
+      background: var(--green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--green);
+      display: inline-block;
+    }
+
+    #video-wrapper {
+      position: relative;
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: #000;
+      box-shadow: 0 0 0 1px var(--border), 0 24px 60px rgba(0,0,0,0.7);
+      width: 100%;
+      max-width: 800px;
+    }
+
+    #video {
+      display: block;
+      width: 100%;
+      height: auto;
+      transform: scaleX(-1);
+    }
+
+    .scan-line { display: none; }
+
+    #status-bar {
+      position: absolute;
+      top: 10px; left: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      z-index: 3;
+    }
+
+    #status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--dim);
+      transition: background 0.3s;
+    }
+    #status-dot.live {
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    #canvas { display: none; }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      padding: 11px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      letter-spacing: 0.02em;
+    }
+
+    #btn-snap {
+      background: var(--red);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(239,68,68,0.35);
+    }
+    #btn-snap:hover  { background: #dc2626; box-shadow: 0 4px 18px rgba(239,68,68,0.5); }
+    #btn-snap:active { transform: scale(0.95); }
+    #btn-snap:disabled { background: var(--surface2); color: var(--dim); cursor: default; box-shadow: none; }
+
+    #btn-cam {
+      background: var(--surface);
+      color: var(--muted);
+      border: 1px solid var(--border2);
+    }
+    #btn-cam:hover { background: var(--surface2); color: var(--text); }
+
+    /* Cards */
+    #gallery, #objects-panel, #scene-panel, #codes-panel, #color-panel {
+      width: 100%;
+      max-width: 800px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    #gallery-header, #objects-panel-header, #scene-panel-header, #codes-panel-header, #color-panel-header {
+      padding: 11px 16px;
+      font-size: 0.62rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #gallery-header::before, #objects-panel-header::before,
+    #scene-panel-header::before, #codes-panel-header::before, #color-panel-header::before {
+      content: '';
+      display: inline-block;
+      width: 3px; height: 13px;
+      background: var(--green);
+      border-radius: 2px;
+    }
+
+    #gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px;
+      padding: 14px;
+    }
+
+    .photo-card {
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: border-color 0.15s, transform 0.1s;
+    }
+    .photo-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+
+    .photo-card img {
+      display: block;
+      width: 100%;
+      height: 110px;
+      object-fit: cover;
+    }
+
+    .photo-card .card-footer {
+      padding: 6px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .photo-card .timestamp {
+      font-size: 0.63rem;
+      color: var(--muted);
+    }
+
+    .photo-card .btn-dl {
+      font-size: 0.65rem;
+      padding: 3px 8px;
+      border-radius: 5px;
+      background: var(--surface);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all 0.15s;
+      font-weight: 500;
+    }
+    .photo-card .btn-dl:hover { background: var(--bg); color: var(--text); }
+
+    #no-photos {
+      color: var(--dim);
+      font-size: 0.82rem;
+      padding: 24px 0;
+      text-align: center;
+      width: 100%;
+    }
+
+    #overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+    }
+
+    #objects-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 14px;
+    }
+
+    .object-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .object-name {
+      flex: 1;
+      font-size: 0.88rem;
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .object-bar {
+      width: 80px; height: 4px;
+      background: var(--bg);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .object-bar-fill {
+      height: 100%;
+      background: var(--green);
+      border-radius: 2px;
+      transition: width 0.3s;
+    }
+
+    .object-score {
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-family: monospace;
+      min-width: 36px;
+      text-align: right;
+    }
+
+    #no-objects { color: var(--dim); font-size: 0.82rem; padding: 10px 0; }
+
+    #codes-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 14px;
+    }
+
+    .code-item {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 11px 40px 11px 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--green);
+      border-radius: 8px;
+    }
+
+    .code-item.clickable { cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+    .code-item.clickable:hover { background: #1d2a3a; border-color: var(--border2); }
+
+    .code-delete {
+      position: absolute;
+      top: 9px; right: 9px;
+      background: transparent;
+      border: none;
+      color: var(--dim);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s, background 0.15s;
+    }
+    .code-delete:hover { color: var(--red); background: rgba(239,68,68,0.1); }
+
+    .code-format {
+      font-size: 0.59rem;
+      color: var(--green);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 700;
+    }
+
+    .code-value {
+      font-size: 0.88rem;
+      color: var(--text);
+      font-family: monospace;
+      word-break: break-all;
+    }
+
+    .code-value a {
+      color: var(--blue);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(59,130,246,0.35);
+    }
+    .code-value a:hover { color: #60a5fa; border-bottom-color: #60a5fa; }
+
+    .code-product {
+      display: flex;
+      gap: 12px;
+      margin-top: 9px;
+      padding-top: 9px;
+      border-top: 1px solid var(--border);
+      align-items: center;
+    }
+
+    .code-product-img {
+      width: 54px; height: 54px;
+      object-fit: contain;
+      background: #fff;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+
+    .code-product-text { flex: 1; min-width: 0; }
+
+    .code-product-name {
+      font-size: 0.86rem;
+      color: var(--text);
+      font-weight: 500;
+      line-height: 1.3;
+    }
+
+    .code-product-brand {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+
+    .code-product-meta {
+      font-size: 0.68rem;
+      color: var(--dim);
+      margin-top: 5px;
+      padding-top: 5px;
+      border-top: 1px solid var(--border);
+      font-style: italic;
+    }
+
+    #no-codes { color: var(--dim); font-size: 0.82rem; padding: 10px 0; }
+
+    #color-swatches {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 14px;
+    }
+
+    .swatch {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .swatch-box {
+      width: 54px; height: 54px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.07);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    }
+
+    .swatch-name { font-size: 0.68rem; color: var(--text);  font-weight: 600; }
+    .swatch-hex  { font-size: 0.58rem; color: var(--muted); font-family: monospace; }
+    .swatch-pct  { font-size: 0.58rem; color: var(--dim); }
+
+    #flash {
+      position: fixed; inset: 0;
+      background: #fff;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 999;
+      transition: opacity 0.05s;
+    }
+
+    #lightbox {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.92);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      cursor: zoom-out;
+    }
+    #lightbox.open { display: flex; }
+    #lightbox img {
+      max-width: 95vw; max-height: 95vh;
+      border-radius: 10px;
+      box-shadow: 0 0 80px rgba(0,0,0,0.9);
+    }
+
+    #product-modal {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 1001;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 40px 20px;
+      overflow-y: auto;
+    }
+    #product-modal.open { display: flex; }
+
+    #product-modal .modal-content {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 14px;
+      max-width: 540px;
+      width: 100%;
+      padding: 28px;
+      position: relative;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.7);
+    }
+
+    #product-modal .modal-close {
+      position: absolute;
+      top: 12px; right: 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 1.3rem;
+      cursor: pointer;
+      width: 32px; height: 32px;
+      border-radius: 6px;
+      line-height: 1;
+      transition: all 0.15s;
+    }
+    #product-modal .modal-close:hover { background: var(--border); color: var(--text); }
+
+    #product-modal .modal-image {
+      display: block;
+      max-width: 100%; max-height: 200px;
+      margin: 0 auto 20px;
+      border-radius: 10px;
+      background: #fff;
+      object-fit: contain;
+    }
+
+    #product-modal h2 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+      line-height: 1.3;
+    }
+
+    #product-modal .modal-brand { color: var(--muted); font-size: 0.85rem; margin-bottom: 4px; }
+    #product-modal .modal-ean   { color: var(--dim);   font-size: 0.67rem; font-family: monospace; }
+
+    #product-modal .modal-section {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+
+    #product-modal .modal-section-title {
+      font-size: 0.62rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 10px;
+    }
+
+    #product-modal .modal-text {
+      font-size: 0.84rem;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+
+    .modal-scores { display: flex; gap: 10px; margin: 14px 0 4px; }
+    .modal-score {
+      flex: 1;
+      text-align: center;
+      padding: 12px 8px;
+      border-radius: 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+    }
+    .modal-score-label {
+      font-size: 0.59rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .modal-score-grade {
+      font-size: 2.1rem;
+      font-weight: 800;
+      margin-top: 4px;
+      text-transform: uppercase;
+      line-height: 1;
+    }
+    .modal-score-grade.a { color: #16a34a; }
+    .modal-score-grade.b { color: #65a30d; }
+    .modal-score-grade.c { color: #ca8a04; }
+    .modal-score-grade.d { color: #ea580c; }
+    .modal-score-grade.e { color: #dc2626; }
+
+    .modal-nutriments { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .modal-nutriment {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.78rem;
+    }
+    .modal-nutriment-label { color: var(--muted); }
+    .modal-nutriment-value { color: var(--text); font-family: monospace; font-weight: 600; }
+
+    .modal-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .modal-tag {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: #94a3b8;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 500;
+    }
+
+    .modal-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 20px;
+      color: var(--blue);
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 500;
+    }
+    .modal-link:hover { color: #60a5fa; text-decoration: underline; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
+</head>
+<body>
+
+  <h1>Scanner</h1>
+
+  <div id="video-wrapper">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+    <div class="scan-line"></div>
+    <div id="status-bar">
+      <div id="status-dot"></div>
+      <span id="status-text">Verbinde...</span>
+    </div>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <div class="controls">
+    <button id="btn-snap" disabled>&#9679; Aufnehmen</button>
+    <button id="btn-cam">&#8635; Wechseln</button>
+  </div>
+
+  <div id="gallery">
+    <div id="gallery-header">Aufgenommene Fotos</div>
+    <div id="gallery-grid">
+      <span id="no-photos">Noch keine Fotos.</span>
+    </div>
+  </div>
+
+  <div id="objects-panel">
+    <div id="objects-panel-header">Erkannte Objekte</div>
+    <div id="objects-list"><span id="no-objects">Modell wird geladen…</span></div>
+  </div>
+
+  <div id="scene-panel">
+    <div id="scene-panel-header">Erweiterte Erkennung</div>
+    <div id="scene-list"><span id="no-scene">Modell wird geladen…</span></div>
+  </div>
+
+  <div id="codes-panel">
+    <div id="codes-panel-header">Erkannte Codes</div>
+    <div id="codes-list"><span id="no-codes">Bereit zum Scannen…</span></div>
+  </div>
+
+  <div id="color-panel">
+    <div id="color-panel-header">Erkannte Farben</div>
+    <div id="color-swatches"></div>
+  </div>
+
+  <div id="lightbox">
+    <img id="lightbox-img" src="" alt="Foto">
+  </div>
+
+  <div id="product-modal">
+    <div class="modal-content">
+      <button class="modal-close" title="Schließen">×</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="flash"></div>
+
+  <script>
+    const video     = document.getElementById('video');
+    const canvas    = document.getElementById('canvas');
+    const btnSnap   = document.getElementById('btn-snap');
+    const btnCam    = document.getElementById('btn-cam');
+    const statusDot = document.getElementById('status-dot');
+    const statusTxt = document.getElementById('status-text');
+    const grid      = document.getElementById('gallery-grid');
+    const noPhotos  = document.getElementById('no-photos');
+    const flash     = document.getElementById('flash');
+
+    let stream = null;
+    let devices = [];
+    let currentDeviceIdx = 0;
+    let photoCount = 0;
+
+    async function loadDevices() {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      devices = all.filter(d => d.kind === 'videoinput');
+    }
+
+    async function startCamera(deviceId) {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+
+      const constraints = {
+        video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment' },
+        audio: false
+      };
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+        statusDot.className = 'live';
+        statusTxt.textContent = 'LIVE';
+        btnSnap.disabled = false;
+        await loadDevices();
+      } catch (err) {
+        statusTxt.textContent = 'Kein Zugriff: ' + err.message;
+        console.error(err);
+      }
+    }
+
+    function triggerFlash() {
+      flash.style.opacity = '0.85';
+      setTimeout(() => { flash.style.opacity = '0'; }, 120);
+    }
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    function timestamp() {
+      const d = new Date();
+      return d.getFullYear() + '-'
+        + pad(d.getMonth()+1) + '-'
+        + pad(d.getDate()) + ' '
+        + pad(d.getHours()) + ':'
+        + pad(d.getMinutes()) + ':'
+        + pad(d.getSeconds());
+    }
+
+    function takePhoto() {
+      if (!stream) return;
+      const track = stream.getVideoTracks()[0];
+      const { width, height } = track.getSettings();
+      canvas.width  = width  || video.videoWidth;
+      canvas.height = height || video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      triggerFlash();
+
+      const dataUrl = canvas.toDataURL('image/png');
+      const ts = timestamp();
+      photoCount++;
+
+      if (noPhotos) noPhotos.remove();
+
+      const card = document.createElement('div');
+      card.className = 'photo-card';
+
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.alt = 'Foto ' + photoCount;
+      img.title = ts;
+
+      const footer = document.createElement('div');
+      footer.className = 'card-footer';
+
+      const label = document.createElement('span');
+      label.className = 'timestamp';
+      label.textContent = ts.split(' ')[1];
+
+      const dlBtn = document.createElement('button');
+      dlBtn.className = 'btn-dl';
+      dlBtn.textContent = 'Speichern';
+      dlBtn.addEventListener('click', () => {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = 'foto-' + ts.replace(/[: ]/g, '-') + '.png';
+        a.click();
+      });
+
+      img.addEventListener('click', () => openLightbox(dataUrl));
+
+      footer.appendChild(label);
+      footer.appendChild(dlBtn);
+      card.appendChild(img);
+      card.appendChild(footer);
+      grid.prepend(card);
+    }
+
+    const lightbox    = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightbox-img');
+
+    function openLightbox(src) {
+      lightboxImg.src = src;
+      lightbox.classList.add('open');
+    }
+
+    lightbox.addEventListener('click', () => lightbox.classList.remove('open'));
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Escape') lightbox.classList.remove('open');
+    });
+
+    btnSnap.addEventListener('click', takePhoto);
+
+    btnCam.addEventListener('click', async () => {
+      if (devices.length < 2) return;
+      currentDeviceIdx = (currentDeviceIdx + 1) % devices.length;
+      await startCamera(devices[currentDeviceIdx].deviceId);
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && !btnSnap.disabled) {
+        e.preventDefault();
+        takePhoto();
+      }
+    });
+
+    startCamera(null);
+
+    const DE = {
+      person: 'Person', bicycle: 'Fahrrad', car: 'Auto', motorcycle: 'Motorrad',
+      airplane: 'Flugzeug', bus: 'Bus', train: 'Zug', truck: 'LKW',
+      boat: 'Boot', 'traffic light': 'Ampel', 'fire hydrant': 'Hydrant',
+      'stop sign': 'Stoppschild', 'parking meter': 'Parkuhr', bench: 'Bank',
+      bird: 'Vogel', cat: 'Katze', dog: 'Hund', horse: 'Pferd',
+      sheep: 'Schaf', cow: 'Kuh', elephant: 'Elefant', bear: 'Bär',
+      zebra: 'Zebra', giraffe: 'Giraffe', backpack: 'Rucksack', umbrella: 'Regenschirm',
+      handbag: 'Handtasche', tie: 'Krawatte', suitcase: 'Koffer', frisbee: 'Frisbee',
+      skis: 'Ski', snowboard: 'Snowboard', 'sports ball': 'Ball', kite: 'Drachen',
+      'baseball bat': 'Baseballschläger', 'baseball glove': 'Baseballhandschuh',
+      skateboard: 'Skateboard', surfboard: 'Surfboard', 'tennis racket': 'Tennisschläger',
+      bottle: 'Flasche', 'wine glass': 'Weinglas', cup: 'Tasse', fork: 'Gabel',
+      knife: 'Messer', spoon: 'Löffel', bowl: 'Schüssel', banana: 'Banane',
+      apple: 'Apfel', sandwich: 'Sandwich', orange: 'Orange', broccoli: 'Brokkoli',
+      carrot: 'Karotte', 'hot dog': 'Hotdog', pizza: 'Pizza', donut: 'Donut',
+      cake: 'Kuchen', chair: 'Stuhl', couch: 'Sofa', 'potted plant': 'Topfpflanze',
+      bed: 'Bett', 'dining table': 'Esstisch', toilet: 'Toilette', tv: 'Fernseher',
+      laptop: 'Laptop', mouse: 'Maus', remote: 'Fernbedienung', keyboard: 'Tastatur',
+      'cell phone': 'Handy', microwave: 'Mikrowelle', oven: 'Ofen', toaster: 'Toaster',
+      sink: 'Waschbecken', refrigerator: 'Kühlschrank', book: 'Buch', clock: 'Uhr',
+      vase: 'Vase', scissors: 'Schere', 'teddy bear': 'Teddybär',
+      'hair drier': 'Föhn', toothbrush: 'Zahnbürste'
+    };
+
+    let detectionModel = null;
+    const overlay    = document.getElementById('overlay');
+    const overlayCtx = overlay.getContext('2d');
+
+    const COLORS = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#e91e63'];
+    function classColor(cls) {
+      let h = 0;
+      for (let i = 0; i < cls.length; i++) h = cls.charCodeAt(i) + h * 31;
+      return COLORS[Math.abs(h) % COLORS.length];
+    }
+
+    let latestPredictions = [];
+    let latestBarcodes    = [];
+    let latestSceneBoxes  = [];
+
+    function renderOverlay() {
+      const w = video.clientWidth;
+      const h = video.clientHeight;
+      overlay.width  = w;
+      overlay.height = h;
+      overlayCtx.clearRect(0, 0, w, h);
+
+      if (!video.videoWidth) return;
+      const sx = w / video.videoWidth;
+      const sy = h / video.videoHeight;
+
+      overlayCtx.font = 'bold 13px Segoe UI, sans-serif';
+
+      const vw = video.videoWidth;
+
+      for (const pred of latestPredictions) {
+        const [bx, by, bw, bh] = pred.bbox;
+        const color = classColor(pred.class);
+        const label = `${DE[pred.class] || pred.class}  ${Math.round(pred.score * 100)}%`;
+
+        const rx = (vw - bx - bw) * sx, ry = by * sy, rw = bw * sx, rh = bh * sy;
+
+        overlayCtx.strokeStyle = color;
+        overlayCtx.lineWidth = 2;
+        overlayCtx.strokeRect(rx, ry, rw, rh);
+
+        const tw = overlayCtx.measureText(label).width;
+        overlayCtx.fillStyle = color;
+        overlayCtx.fillRect(rx, ry - 22, tw + 10, 22);
+        overlayCtx.fillStyle = '#fff';
+        overlayCtx.fillText(label, rx + 5, ry - 6);
+      }
+
+      for (const code of latestBarcodes) {
+        const { x, y, width, height } = code.boundingBox;
+        const rx = (vw - x - width) * sx, ry = y * sy, rw = width * sx, rh = height * sy;
+
+        overlayCtx.strokeStyle = '#2ecc71';
+        overlayCtx.lineWidth = 3;
+        overlayCtx.strokeRect(rx, ry, rw, rh);
+
+        const label = `${code.format}: ${code.rawValue}`;
+        const tw = overlayCtx.measureText(label).width;
+        const labelY = ry + rh + 22 > h ? ry - 22 : ry + rh;
+        overlayCtx.fillStyle = '#2ecc71';
+        overlayCtx.fillRect(rx, labelY, Math.min(tw + 10, rw + 200), 22);
+        overlayCtx.fillStyle = '#000';
+        overlayCtx.fillText(label, rx + 5, labelY + 15);
+      }
+
+      for (const det of latestSceneBoxes) {
+        const { x, y, width, height } = det.box;
+        const score = Math.round(det.score * 100);
+        const lbl = `${det.label}  ${score}%`;
+        const rx = (vw - x - width) * sx, ry = y * sy, rw = width * sx, rh = height * sy;
+
+        overlayCtx.strokeStyle = '#3b82f6';
+        overlayCtx.lineWidth = 2;
+        overlayCtx.setLineDash([6, 3]);
+        overlayCtx.strokeRect(rx, ry, rw, rh);
+        overlayCtx.setLineDash([]);
+
+        const tw = overlayCtx.measureText(lbl).width;
+        const labelY2 = ry > 22 ? ry - 4 : ry + rh + 18;
+        overlayCtx.fillStyle = '#3b82f6';
+        overlayCtx.fillRect(rx, labelY2 - 18, tw + 10, 22);
+        overlayCtx.fillStyle = '#fff';
+        overlayCtx.fillText(lbl, rx + 5, labelY2 - 3);
+      }
+    }
+
+    async function detectObjects() {
+      if (detectionModel && stream && video.readyState >= 2) {
+        const predictions = await detectionModel.detect(video, 50, 0.25);
+        latestPredictions = predictions;
+        renderOverlay();
+        const list = document.getElementById('objects-list');
+        list.innerHTML = '';
+
+        if (predictions.length === 0) {
+          const empty = document.createElement('span');
+          empty.id = 'no-objects';
+          empty.textContent = 'Keine Objekte erkannt.';
+          list.appendChild(empty);
+        } else {
+          for (const pred of predictions) {
+            const score = Math.round(pred.score * 100);
+            const name = DE[pred.class] || pred.class;
+
+            const item = document.createElement('div');
+            item.className = 'object-item';
+
+            const nameEl = document.createElement('span');
+            nameEl.className = 'object-name';
+            nameEl.textContent = name;
+
+            const bar = document.createElement('div');
+            bar.className = 'object-bar';
+            const fill = document.createElement('div');
+            fill.className = 'object-bar-fill';
+            fill.style.width = score + '%';
+            bar.appendChild(fill);
+
+            const scoreEl = document.createElement('span');
+            scoreEl.className = 'object-score';
+            scoreEl.textContent = score + '%';
+
+            item.appendChild(nameEl);
+            item.appendChild(bar);
+            item.appendChild(scoreEl);
+            list.appendChild(item);
+          }
+        }
+      }
+      setTimeout(detectObjects, 500);
+    }
+
+    cocoSsd.load().then(model => {
+      detectionModel = model;
+      document.getElementById('no-objects').textContent = 'Warte auf Kamera…';
+      detectObjects();
+    });
+
+    const codesSeen    = new Map();
+    const productCache = new Map();
+    const STORAGE_KEY  = 'kamera-codes-v1';
+
+    function saveCodes() {
+      const arr = [];
+      for (const [k, v] of codesSeen) {
+        arr.push([k, { format: v.format, ts: v.ts, product: v.product }]);
+      }
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); } catch (e) {}
+    }
+
+    function loadCodes() {
+      try {
+        const arr = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        for (const [k, v] of arr) codesSeen.set(k, v);
+      } catch (e) {}
+    }
+
+    function deleteCode(value) {
+      codesSeen.delete(value);
+      saveCodes();
+      renderCodes();
+      latestBarcodes = getActiveBarcodes();
+      renderOverlay();
+    }
+
+    const NUTRIMENT_LABELS = {
+      'energy-kcal_100g':   'Energie (kcal)',
+      'fat_100g':           'Fett',
+      'saturated-fat_100g': 'davon ges. Fettsäuren',
+      'carbohydrates_100g': 'Kohlenhydrate',
+      'sugars_100g':        'davon Zucker',
+      'fiber_100g':         'Ballaststoffe',
+      'proteins_100g':      'Eiweiß',
+      'salt_100g':          'Salz'
+    };
+    const NUTRIMENT_UNITS = {
+      'energy-kcal_100g': 'kcal'
+    };
+
+    function showProductModal(ean, product) {
+      const body = document.getElementById('modal-body');
+      body.innerHTML = '';
+
+      if (product.imageLarge) {
+        const img = document.createElement('img');
+        img.className = 'modal-image';
+        img.src = product.imageLarge;
+        body.appendChild(img);
+      }
+
+      const h2 = document.createElement('h2');
+      h2.textContent = product.name || '(ohne Namen)';
+      body.appendChild(h2);
+
+      if (product.brand) {
+        const brand = document.createElement('div');
+        brand.className = 'modal-brand';
+        brand.textContent = product.brand + (product.quantity ? ' · ' + product.quantity : '');
+        body.appendChild(brand);
+      }
+
+      const eanEl = document.createElement('div');
+      eanEl.className = 'modal-ean';
+      eanEl.textContent = 'EAN: ' + ean;
+      body.appendChild(eanEl);
+
+      if (product.nutriScore || product.ecoScore || product.novaGroup) {
+        const scores = document.createElement('div');
+        scores.className = 'modal-scores';
+
+        const addScore = (label, grade, isGrade) => {
+          if (!grade) return;
+          const div = document.createElement('div');
+          div.className = 'modal-score';
+          const lbl = document.createElement('div');
+          lbl.className = 'modal-score-label';
+          lbl.textContent = label;
+          const val = document.createElement('div');
+          val.className = 'modal-score-grade' + (isGrade ? ' ' + grade : '');
+          val.textContent = grade;
+          div.appendChild(lbl);
+          div.appendChild(val);
+          scores.appendChild(div);
+        };
+
+        if (product.nutriScore) addScore('Nutri-Score', product.nutriScore, true);
+        if (product.ecoScore)   addScore('Eco-Score',   product.ecoScore,   true);
+        if (product.novaGroup)  addScore('NOVA-Gruppe', String(product.novaGroup), false);
+
+        body.appendChild(scores);
+      }
+
+      const section = (title, builder) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'modal-section';
+        const t = document.createElement('div');
+        t.className = 'modal-section-title';
+        t.textContent = title;
+        wrap.appendChild(t);
+        const content = builder();
+        if (content) {
+          wrap.appendChild(content);
+          body.appendChild(wrap);
+        }
+      };
+
+      const nutriments = product.nutriments || {};
+      const hasNutri = Object.keys(NUTRIMENT_LABELS).some(k => nutriments[k] != null);
+      if (hasNutri) {
+        section('Nährwerte pro 100 g/ml', () => {
+          const grid = document.createElement('div');
+          grid.className = 'modal-nutriments';
+          for (const [key, label] of Object.entries(NUTRIMENT_LABELS)) {
+            const v = nutriments[key];
+            if (v == null) continue;
+            const item = document.createElement('div');
+            item.className = 'modal-nutriment';
+            const lbl = document.createElement('span');
+            lbl.className = 'modal-nutriment-label';
+            lbl.textContent = label;
+            const val = document.createElement('span');
+            val.className = 'modal-nutriment-value';
+            const unit = NUTRIMENT_UNITS[key] || (nutriments[key + '_unit'] || 'g');
+            val.textContent = (Math.round(v * 10) / 10) + ' ' + unit;
+            item.appendChild(lbl);
+            item.appendChild(val);
+            grid.appendChild(item);
+          }
+          return grid;
+        });
+      }
+
+      if (product.ingredients) {
+        section('Zutaten', () => {
+          const p = document.createElement('div');
+          p.className = 'modal-text';
+          p.textContent = product.ingredients;
+          return p;
+        });
+      }
+
+      if (product.allergens && product.allergens.length) {
+        section('Allergene', () => {
+          const wrap = document.createElement('div');
+          wrap.className = 'modal-tags';
+          for (const a of product.allergens) {
+            const tag = document.createElement('span');
+            tag.className = 'modal-tag';
+            tag.textContent = a;
+            wrap.appendChild(tag);
+          }
+          return wrap;
+        });
+      }
+
+      if (product.labels && product.labels.length) {
+        section('Auszeichnungen', () => {
+          const wrap = document.createElement('div');
+          wrap.className = 'modal-tags';
+          for (const l of product.labels.slice(0, 12)) {
+            const tag = document.createElement('span');
+            tag.className = 'modal-tag';
+            tag.textContent = l;
+            wrap.appendChild(tag);
+          }
+          return wrap;
+        });
+      }
+
+      if (product.categories && product.categories.length) {
+        section('Kategorie', () => {
+          const p = document.createElement('div');
+          p.className = 'modal-text';
+          p.textContent = product.categories.join(' › ');
+          return p;
+        });
+      }
+
+      if (product.stores || product.origins || product.countries) {
+        section('Herkunft & Vertrieb', () => {
+          const p = document.createElement('div');
+          p.className = 'modal-text';
+          const parts = [];
+          if (product.origins)   parts.push('Herkunft: ' + product.origins);
+          if (product.countries) parts.push('Länder: '  + product.countries);
+          if (product.stores)    parts.push('Geschäfte: ' + product.stores);
+          p.textContent = parts.join(' · ');
+          return p;
+        });
+      }
+
+      const link = document.createElement('a');
+      link.className = 'modal-link';
+      link.href = product.link;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'Auf Open Food Facts ansehen →';
+      body.appendChild(link);
+
+      document.getElementById('product-modal').classList.add('open');
+    }
+
+    const productModal = document.getElementById('product-modal');
+    productModal.addEventListener('click', (e) => {
+      if (e.target === productModal || e.target.classList.contains('modal-close')) {
+        productModal.classList.remove('open');
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Escape') productModal.classList.remove('open');
+    });
+
+    async function lookupProduct(ean) {
+      if (productCache.has(ean)) return productCache.get(ean);
+      const pending = (async () => {
+        try {
+          const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${ean}.json`);
+          const data = await res.json();
+          if (data.status === 1 && data.product) {
+            const p = data.product;
+            return {
+              found: true,
+              ean,
+              name:        p.product_name_de || p.product_name || '',
+              brand:       p.brands || '',
+              quantity:    p.quantity || '',
+              image:       p.image_front_small_url || p.image_url || '',
+              imageLarge:  p.image_front_url || p.image_url || '',
+              ingredients: p.ingredients_text_de || p.ingredients_text || '',
+              nutriScore:  (p.nutriscore_grade || '').toLowerCase(),
+              ecoScore:    (p.ecoscore_grade   || '').toLowerCase(),
+              novaGroup:   p.nova_group || null,
+              nutriments:  p.nutriments || {},
+              allergens:   (p.allergens_tags || []).map(t => t.replace(/^en:/, '')),
+              labels:      (p.labels_tags    || []).map(t => t.replace(/^en:/, '').replace(/-/g, ' ')),
+              categories:  (p.categories_tags || []).slice(-3).map(t => t.replace(/^en:/, '').replace(/-/g, ' ')),
+              stores:      p.stores || '',
+              countries:   p.countries || '',
+              origins:     p.origins || '',
+              link:        `https://world.openfoodfacts.org/product/${ean}`
+            };
+          }
+        } catch (e) { /* offline o.ä. */ }
+        return { found: false };
+      })();
+      productCache.set(ean, pending);
+      const result = await pending;
+      productCache.set(ean, result);
+      return result;
+    }
+
+    function isUrl(s) {
+      return /^https?:\/\/\S+$/i.test(s);
+    }
+
+    function renderCodes() {
+      const list = document.getElementById('codes-list');
+      list.innerHTML = '';
+
+      if (codesSeen.size === 0) {
+        const empty = document.createElement('span');
+        empty.id = 'no-codes';
+        empty.textContent = 'Bereit zum Scannen…';
+        list.appendChild(empty);
+        return;
+      }
+
+      const sorted = [...codesSeen.entries()].sort((a, b) => b[1].ts - a[1].ts);
+      for (const [value, info] of sorted) {
+        const item = document.createElement('div');
+        item.className = 'code-item';
+
+        const clickable = info.format !== 'qr code' && info.product && info.product.found;
+        if (clickable) {
+          item.classList.add('clickable');
+          item.addEventListener('click', (e) => {
+            if (e.target.closest('.code-delete')) return;
+            showProductModal(value, info.product);
+          });
+        }
+
+        const fmt = document.createElement('div');
+        fmt.className = 'code-format';
+        fmt.textContent = info.format;
+
+        const val = document.createElement('div');
+        val.className = 'code-value';
+        if (isUrl(value)) {
+          const a = document.createElement('a');
+          a.href = value;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          a.textContent = value;
+          val.appendChild(a);
+        } else {
+          val.textContent = value;
+        }
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'code-delete';
+        delBtn.title = 'Code löschen';
+        delBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path></svg>';
+        delBtn.addEventListener('click', () => deleteCode(value));
+
+        item.appendChild(delBtn);
+        item.appendChild(fmt);
+        item.appendChild(val);
+
+        if (info.format !== 'qr code') {
+          if (info.product && info.product.found) {
+            const wrap = document.createElement('div');
+            wrap.className = 'code-product';
+
+            if (info.product.image) {
+              const img = document.createElement('img');
+              img.className = 'code-product-img';
+              img.src = info.product.image;
+              img.alt = '';
+              wrap.appendChild(img);
+            }
+
+            const text = document.createElement('div');
+            text.className = 'code-product-text';
+
+            const name = document.createElement('div');
+            name.className = 'code-product-name';
+            name.textContent = info.product.name || '(ohne Namen)';
+            text.appendChild(name);
+
+            const subParts = [];
+            if (info.product.brand)    subParts.push(info.product.brand);
+            if (info.product.quantity) subParts.push(info.product.quantity);
+            if (subParts.length) {
+              const brand = document.createElement('div');
+              brand.className = 'code-product-brand';
+              brand.textContent = subParts.join(' · ');
+              text.appendChild(brand);
+            }
+
+            wrap.appendChild(text);
+            item.appendChild(wrap);
+          } else if (info.product && !info.product.found) {
+            const empty = document.createElement('div');
+            empty.className = 'code-product-meta';
+            empty.textContent = 'Produkt nicht in Datenbank gefunden';
+            item.appendChild(empty);
+          } else {
+            const loading = document.createElement('div');
+            loading.className = 'code-product-meta';
+            loading.textContent = 'Suche Produkt…';
+            item.appendChild(loading);
+          }
+        }
+
+        list.appendChild(item);
+      }
+    }
+
+    const scanCanvas = document.createElement('canvas');
+    const scanCtx    = scanCanvas.getContext('2d', { willReadFrequently: true });
+    const OVERLAY_FRESHNESS = 600;
+    let scanningQuagga = false;
+
+    function getActiveBarcodes() {
+      const now = Date.now();
+      const list = [];
+      for (const [value, info] of codesSeen) {
+        if (info.box && now - info.ts < OVERLAY_FRESHNESS) {
+          list.push({ rawValue: value, format: info.format, boundingBox: info.box });
+        }
+      }
+      return list;
+    }
+
+    function bboxFromPoints(points) {
+      const xs = points.map(p => p[0]);
+      const ys = points.map(p => p[1]);
+      const minX = Math.min(...xs), maxX = Math.max(...xs);
+      const minY = Math.min(...ys), maxY = Math.max(...ys);
+      return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+    }
+
+    function detectBarcodes() {
+      if (stream && video.readyState >= 2 && video.videoWidth > 0) {
+        scanCanvas.width  = video.videoWidth;
+        scanCanvas.height = video.videoHeight;
+        scanCtx.drawImage(video, 0, 0);
+
+        const img = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+        const qr  = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+
+        if (qr) {
+          const c = qr.location;
+          const box = bboxFromPoints([
+            [c.topLeftCorner.x,     c.topLeftCorner.y],
+            [c.topRightCorner.x,    c.topRightCorner.y],
+            [c.bottomRightCorner.x, c.bottomRightCorner.y],
+            [c.bottomLeftCorner.x,  c.bottomLeftCorner.y]
+          ]);
+          const existing = codesSeen.get(qr.data) || {};
+          codesSeen.set(qr.data, { ...existing, format: 'qr code', ts: Date.now(), box });
+          saveCodes();
+          renderCodes();
+        }
+
+        if (!scanningQuagga && typeof Quagga !== 'undefined') {
+          scanningQuagga = true;
+          Quagga.decodeSingle({
+            decoder: {
+              readers: ['ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'code_128_reader']
+            },
+            locate: true,
+            src: scanCanvas.toDataURL()
+          }, (result) => {
+            scanningQuagga = false;
+            if (result && result.codeResult) {
+              const ean = result.codeResult.code;
+              const fmt = result.codeResult.format.replace(/_/g, ' ');
+              const box = (result.box && result.box.length === 4) ? bboxFromPoints(result.box) : null;
+
+              const existing = codesSeen.get(ean) || {};
+              codesSeen.set(ean, { ...existing, format: fmt, ts: Date.now(), box });
+              saveCodes();
+
+              if (!existing.product) {
+                lookupProduct(ean).then(product => {
+                  const current = codesSeen.get(ean);
+                  if (current) {
+                    current.product = product;
+                    saveCodes();
+                    renderCodes();
+                  }
+                });
+              }
+
+              renderCodes();
+              latestBarcodes = getActiveBarcodes();
+              renderOverlay();
+            }
+          });
+        }
+
+        latestBarcodes = getActiveBarcodes();
+        renderOverlay();
+      }
+      setTimeout(detectBarcodes, 250);
+    }
+
+    loadCodes();
+    renderCodes();
+    detectBarcodes();
+
+    const analysisCanvas = document.createElement('canvas');
+    const analysisCtx = analysisCanvas.getContext('2d', { willReadFrequently: true });
+
+    function toHex(v) { return Math.min(255, v).toString(16).padStart(2, '0'); }
+
+    const NAMED_COLORS = [
+      ['Schwarz',     0,   0,   0],
+      ['Weiß',        255, 255, 255],
+      ['Grau',        128, 128, 128],
+      ['Hellgrau',    200, 200, 200],
+      ['Dunkelgrau',  64,  64,  64],
+      ['Rot',         220, 20,  20],
+      ['Dunkelrot',   120, 20,  20],
+      ['Rosa',        255, 180, 200],
+      ['Pink',        255, 90,  170],
+      ['Magenta',     200, 20,  150],
+      ['Orange',      255, 140, 0],
+      ['Braun',       120, 70,  30],
+      ['Hellbraun',   180, 130, 80],
+      ['Beige',       220, 200, 170],
+      ['Gelb',        240, 220, 30],
+      ['Hellgelb',    255, 240, 150],
+      ['Olivgrün',    120, 130, 30],
+      ['Grün',        40,  170, 60],
+      ['Hellgrün',    140, 220, 110],
+      ['Dunkelgrün',  20,  90,  30],
+      ['Türkis',      40,  200, 200],
+      ['Hellblau',    140, 200, 240],
+      ['Blau',        40,  90,  220],
+      ['Dunkelblau',  20,  30,  120],
+      ['Lila',        140, 60,  200],
+      ['Violett',     90,  30,  150],
+      ['Hautfarbe',   230, 190, 160]
+    ];
+
+    function colorName(r, g, b) {
+      let best = NAMED_COLORS[0], min = Infinity;
+      for (const c of NAMED_COLORS) {
+        const dr = r - c[1], dg = g - c[2], db = b - c[3];
+        const d = dr*dr + dg*dg + db*db;
+        if (d < min) { min = d; best = c; }
+      }
+      return best[0];
+    }
+
+    function analyzeColors() {
+      if (stream && video.readyState >= 2) {
+        analysisCanvas.width  = 120;
+        analysisCanvas.height = 90;
+        analysisCtx.drawImage(video, 0, 0, 120, 90);
+        const { data } = analysisCtx.getImageData(0, 0, 120, 90);
+
+        const colorMap = {};
+        for (let i = 0; i < data.length; i += 4) {
+          const r = Math.round(data[i]   / 32) * 32;
+          const g = Math.round(data[i+1] / 32) * 32;
+          const b = Math.round(data[i+2] / 32) * 32;
+          colorMap[`${r},${g},${b}`] = (colorMap[`${r},${g},${b}`] || 0) + 1;
+        }
+
+        const total = data.length / 4;
+        const top = Object.entries(colorMap)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 12);
+
+        const container = document.getElementById('color-swatches');
+        container.innerHTML = '';
+
+        for (const [key, count] of top) {
+          const [r, g, b] = key.split(',').map(Number);
+          const hex = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+          const pct = Math.round(count / total * 100);
+
+          const div = document.createElement('div');
+          div.className = 'swatch';
+
+          const box = document.createElement('div');
+          box.className = 'swatch-box';
+          box.style.background = hex;
+
+          const nameLabel = document.createElement('div');
+          nameLabel.className = 'swatch-name';
+          nameLabel.textContent = colorName(r, g, b);
+
+          const hexLabel = document.createElement('div');
+          hexLabel.className = 'swatch-hex';
+          hexLabel.textContent = hex;
+
+          const pctLabel = document.createElement('div');
+          pctLabel.className = 'swatch-pct';
+          pctLabel.textContent = pct + '%';
+
+          div.appendChild(box);
+          div.appendChild(nameLabel);
+          div.appendChild(hexLabel);
+          div.appendChild(pctLabel);
+          container.appendChild(div);
+        }
+      }
+
+      setTimeout(analyzeColors, 200);
+    }
+
+    analyzeColors();
+
+    // ── Erweiterte Erkennung (MobileNet, 1000 ImageNet-Klassen) ──────────
+    const SCENE_LABELS = {
+      // Schreibwaren & Büro
+      'ballpoint': 'Kugelschreiber', 'ballpen': 'Kugelschreiber', 'ballpoint pen': 'Kugelschreiber',
+      'pencil': 'Bleistift', 'pencil box': 'Mäppchen', 'pencil case': 'Mäppchen',
+      'rubber eraser': 'Radiergummi', 'pencil sharpener': 'Anspitzer',
+      'paper knife': 'Brieföffner', 'letter opener': 'Brieföffner',
+      'paper clip': 'Büroklammer', 'binder clip': 'Klammer',
+      'binder': 'Ordner', 'ring binder': 'Ordner', 'ring-binder': 'Ordner',
+      'envelope': 'Briefumschlag',
+      'stapler': 'Heftgerät', 'paper stapler': 'Heftgerät',
+      'calculator': 'Taschenrechner',
+      'computer keyboard': 'Tastatur', 'typewriter keyboard': 'Tastatur',
+      'notebook': 'Notizheft', 'notebook computer': 'Laptop',
+      'comic book': 'Comic',
+      // Lampen & Beleuchtung
+      'table lamp': 'Tischlampe', 'desk lamp': 'Schreibtischlampe',
+      'anglepoise lamp': 'Schreibtischlampe', 'floor lamp': 'Stehlampe',
+      'spotlight': 'Scheinwerfer', 'torch': 'Taschenlampe', 'flashlight': 'Taschenlampe',
+      'candle': 'Kerze', 'candelabra': 'Kerzenhalter', 'lantern': 'Laterne',
+      // Elektronik & Geräte
+      'laptop': 'Laptop', 'monitor': 'Monitor', 'desktop computer': 'Desktop-PC',
+      'hard disc': 'Festplatte', 'hard disk': 'Festplatte', 'modem': 'Modem',
+      'cellular telephone': 'Handy', 'mobile phone': 'Handy', 'cell phone': 'Handy',
+      'telephone': 'Telefon', 'pay-phone': 'Münztelefon',
+      'remote control': 'Fernbedienung', 'television': 'Fernseher', 'radio': 'Radio',
+      'printer': 'Drucker', 'polaroid camera': 'Sofortbildkamera', 'reflex camera': 'Spiegelreflexkamera',
+      'digital clock': 'Digitaluhr', 'wall clock': 'Wanduhr', 'analog clock': 'Analoguhr',
+      'pendulum clock': 'Pendeluhr',
+      'electric fan': 'Ventilator', 'ceiling fan': 'Deckenventilator',
+      'projector': 'Projektor', 'power strip': 'Steckdosenleiste',
+      'ipod': 'iPod', 'joystick': 'Joystick',
+      // Möbel & Wohnen
+      'rocking chair': 'Schaukelstuhl', 'folding chair': 'Klappstuhl',
+      'throne': 'Thron', 'studio couch': 'Schlafsofa', 'bookcase': 'Bücherregal',
+      'wardrobe': 'Kleiderschrank', 'chest': 'Truhe', 'filing cabinet': 'Aktenschrank',
+      'bunk bed': 'Etagenbett',
+      'pillow': 'Kissen', 'cushion': 'Kissen', 'sleeping bag': 'Schlafsack',
+      'blanket': 'Decke', 'quilt': 'Bettdecke',
+      'mirror': 'Spiegel',
+      'window shade': 'Rollo', 'curtain': 'Vorhang', 'shower curtain': 'Duschvorhang',
+      'picture frame': 'Bilderrahmen', 'rug': 'Teppich', 'doormat': 'Fußmatte',
+      'lamp shade': 'Lampenschirm', 'bannister': 'Treppengeländer',
+      // Kleidung & Accessoires
+      'jersey': 'Pullover', 'sweatshirt': 'Sweatshirt', 'tee shirt': 'T-Shirt', 't-shirt': 'T-Shirt',
+      'jean': 'Jeans', 'miniskirt': 'Minirock', 'bikini': 'Bikini',
+      'swimming trunks': 'Badehose', 'brassiere': 'BH',
+      'lab coat': 'Laborkittel', 'suit': 'Anzug', 'cloak': 'Umhang',
+      'trench coat': 'Trenchcoat', 'fur coat': 'Pelzmantel', 'poncho': 'Poncho',
+      'gown': 'Kleid', 'kimono': 'Kimono', 'bow tie': 'Fliege',
+      'cowboy hat': 'Cowboyhut', 'sombrero': 'Sombrero', 'bonnet': 'Haube',
+      'mortar board': 'Doktorhut', 'crash helmet': 'Sturzhelm', 'bathing cap': 'Badekappe',
+      'sock': 'Socke', 'stocking': 'Strumpf',
+      'sandal': 'Sandale', 'clog': 'Holzschuh', 'loafer': 'Loafer',
+      'running shoe': 'Laufschuh', 'tennis shoe': 'Turnschuh', 'stiletto heel': 'Stöckelschuh',
+      'sunglasses': 'Sonnenbrille', 'sunglass': 'Sonnenbrille', 'goggle': 'Schutzbrille',
+      'mask': 'Maske', 'wallet': 'Portemonnaie', 'purse': 'Geldbeutel',
+      'parachute': 'Fallschirm', 'wristwatch': 'Armbanduhr',
+      // Küche & Haushalt
+      'coffee mug': 'Kaffeebecher', 'beer glass': 'Bierglas',
+      'wine bottle': 'Weinflasche', 'beer bottle': 'Bierflasche', 'water bottle': 'Wasserflasche',
+      'pop bottle': 'Limonadenflasche', 'medicine bottle': 'Medizinflasche',
+      'milk can': 'Milchkanne', 'can opener': 'Dosenöffner', 'corkscrew': 'Korkenzieher',
+      'ladle': 'Suppenlöffel', 'frying pan': 'Bratpfanne', 'wok': 'Wok',
+      'pressure cooker': 'Schnellkochtopf', 'colander': 'Sieb',
+      'mixing bowl': 'Rührschüssel', 'spatula': 'Pfannenwender',
+      'wooden spoon': 'Holzlöffel', 'whisk': 'Schneebesen',
+      'rolling pin': 'Nudelholz', 'grater': 'Reibe',
+      'waffle iron': 'Waffeleisen', 'espresso maker': 'Espressomaschine',
+      'coffeepot': 'Kaffeekanne', 'teapot': 'Teekanne',
+      'pitcher': 'Krug', 'carafe': 'Karaffe',
+      'saltshaker': 'Salzstreuer', 'pepper pot': 'Pfefferstreuer',
+      'dishwasher': 'Geschirrspüler',
+      // Lebensmittel
+      'lemon': 'Zitrone', 'orange': 'Orange', 'banana': 'Banane',
+      'strawberry': 'Erdbeere', 'apple': 'Apfel', 'pineapple': 'Ananas',
+      'fig': 'Feige', 'cucumber': 'Gurke', 'artichoke': 'Artischocke',
+      'broccoli': 'Brokkoli', 'cauliflower': 'Blumenkohl', 'corn': 'Mais',
+      'head cabbage': 'Kohl', 'mushroom': 'Pilz', 'zucchini': 'Zucchini',
+      'pizza': 'Pizza', 'hamburger': 'Burger', 'hotdog': 'Hotdog',
+      'pretzel': 'Brezel', 'bagel': 'Bagel', 'french loaf': 'Baguette',
+      'cheeseburger': 'Cheeseburger',
+      // Sport, Musik & Freizeit
+      'dumbbell': 'Hantel', 'barbell': 'Langhantel', 'punching bag': 'Boxsack',
+      'ping-pong ball': 'Tischtennisball', 'tennis ball': 'Tennisball',
+      'golf ball': 'Golfball', 'volleyball': 'Volleyball', 'basketball': 'Basketball',
+      'soccer ball': 'Fußball', 'rugby ball': 'Rugbyball', 'baseball': 'Baseball',
+      'ping-pong paddle': 'Tischtennisschläger', 'pool table': 'Billardtisch',
+      'jigsaw puzzle': 'Puzzle',
+      'guitar': 'Gitarre', 'electric guitar': 'Elektrogitarre',
+      'violin': 'Geige', 'cello': 'Cello', 'piano': 'Klavier',
+      'grand piano': 'Flügel', 'drum': 'Schlagzeug', 'banjo': 'Banjo',
+      'harmonica': 'Mundharmonika', 'flute': 'Flöte',
+      'french horn': 'Waldhorn', 'trombone': 'Posaune',
+      'trumpet': 'Trompete', 'saxophone': 'Saxophon',
+      // Natur & Deko
+      'flower pot': 'Blumentopf', 'pot': 'Blumentopf',
+      'daisy': 'Gänseblümchen', 'sunflower': 'Sonnenblume',
+      'rose': 'Rose', 'tulip': 'Tulpe',
+      // Werkzeug
+      'hammer': 'Hammer', 'screwdriver': 'Schraubenzieher',
+      'wrench': 'Schraubenschlüssel', 'pliers': 'Zange',
+      'drill': 'Bohrmaschine', 'saw': 'Säge',
+      'chain saw': 'Kettensäge', 'axe': 'Axt',
+      'shovel': 'Schaufel', 'hatchet': 'Beil',
+      'bucket': 'Eimer', 'mop': 'Mopp', 'broom': 'Besen',
+      'washing machine': 'Waschmaschine', 'sewing machine': 'Nähmaschine',
+      'iron': 'Bügeleisen',
+      // Medizin
+      'syringe': 'Spritze', 'stethoscope': 'Stethoskop',
+      'bandage': 'Verband', 'thermometer': 'Thermometer',
+      // Bildschirm & Audio
+      'screen': 'Bildschirm', 'crt screen': 'Bildschirm', 'home theater': 'Heimkino',
+      'loudspeaker': 'Lautsprecher', 'speaker': 'Lautsprecher',
+      'microphone': 'Mikrofon', 'mike': 'Mikrofon', 'tripod': 'Stativ',
+      'cd player': 'CD-Player', 'tape player': 'Kassettenrekorder',
+      'compact disc': 'CD', 'compact disk': 'CD',
+      // Haushalt & Hygiene
+      'switch': 'Lichtschalter', 'electric switch': 'Lichtschalter',
+      'wall plug': 'Steckdose', 'electric outlet': 'Steckdose',
+      'paper towel': 'Papiertuch', 'toilet paper': 'Toilettenpapier', 'toilet tissue': 'Toilettenpapier',
+      'tissue': 'Taschentuch', 'kleenex': 'Taschentuch',
+      'soap dispenser': 'Seifenspender', 'plastic bag': 'Plastiktüte', 'polybag': 'Plastiktüte',
+      'trash can': 'Mülleimer', 'dustbin': 'Mülleimer', 'wastebin': 'Papierkorb',
+      'garbage can': 'Mülleimer', 'ashcan': 'Mülleimer',
+      'crib': 'Kinderbett', 'cot': 'Feldbett', 'cradle': 'Wiege',
+      // Körperpflege & Kosmetik
+      'comb': 'Kamm', 'hair dryer': 'Föhn', 'blow dryer': 'Föhn', 'blow drier': 'Föhn',
+      'lipstick': 'Lippenstift', 'lip rouge': 'Lippenstift',
+      'nail polish': 'Nagellack', 'nail enamel': 'Nagellack',
+      'sunscreen': 'Sonnencreme', 'sunblock': 'Sonnencreme',
+      'lotion': 'Lotion', 'face powder': 'Puder', 'hair spray': 'Haarspray',
+      // Schloss & Schlüssel
+      'key': 'Schlüssel', 'padlock': 'Vorhängeschloss',
+      'combination lock': 'Kombinationsschloss', 'hook': 'Haken',
+      // Sonstiges Allgemein
+      'packet': 'Päckchen', 'web site': 'Webseite', 'website': 'Webseite',
+      'dial': 'Wähltastatur', 'band aid': 'Pflaster',
+      'neck tie': 'Krawatte', 'necktie': 'Krawatte', 'tie': 'Krawatte',
+      'jersey': 'Trikot', 'cardigan': 'Strickjacke', 'abaya': 'Abaja',
+      'academic gown': 'Robe', 'hoopskirt': 'Reifrock',
+      'overskirt': 'Überrock', 'vestment': 'Messgewand',
+      'diaper': 'Windel', 'bib': 'Lätzchen',
+      'apron': 'Schürze', 'lab coat': 'Laborkittel',
+      'hard hat': 'Schutzhelm', 'helmet': 'Helm',
+      'shield': 'Schild', 'holster': 'Holster',
+      'chain mail': 'Kettenhemd', 'breastplate': 'Brustpanzer',
+      'backpack': 'Rucksack', 'suitcase': 'Koffer',
+      'tote bag': 'Tragetasche', 'shopping bag': 'Einkaufstasche',
+      'mailbag': 'Posttasche', 'shoulder bag': 'Umhängetasche',
+      'coin': 'Münze', 'paper money': 'Geldschein', 'credit card': 'Kreditkarte',
+      'envelope': 'Briefumschlag',
+      'matchstick': 'Streichholz', 'lighter': 'Feuerzeug',
+      'cork': 'Korken', 'bottle cap': 'Flaschenverschluss',
+      'measuring stick': 'Messstab', 'tape measure': 'Maßband',
+      'rubber': 'Gummi', 'rubber band': 'Gummiband',
+      'string': 'Schnur', 'rope': 'Seil', 'chain': 'Kette', 'wire': 'Draht',
+      'nail': 'Nagel', 'screw': 'Schraube', 'bolt': 'Bolzen',
+      'nut': 'Mutter', 'washer': 'Unterlegscheibe',
+      'hinge': 'Scharnier', 'knob': 'Knauf', 'handle': 'Griff',
+      'drawer': 'Schublade', 'cupboard': 'Schrank', 'cabinet': 'Schrank',
+      'shelf': 'Regal', 'drawer': 'Schublade',
+      'picture frame': 'Bilderrahmen', 'poster': 'Poster',
+      'whiteboard': 'Whiteboard', 'blackboard': 'Tafel', 'chalkboard': 'Tafel',
+      'globe': 'Globus', 'map': 'Landkarte', 'atlas': 'Atlas',
+      'newspaper': 'Zeitung', 'magazine': 'Zeitschrift',
+      'pamphlet': 'Broschüre', 'brochure': 'Broschüre',
+      'label': 'Etikett', 'tag': 'Anhänger',
+      'banner': 'Banner', 'flag': 'Flagge',
+      'clock': 'Uhr', 'hourglass': 'Sanduhr', 'stopwatch': 'Stoppuhr',
+      'scale': 'Waage', 'balance': 'Waage',
+      'magnifying glass': 'Lupe', 'binoculars': 'Fernglas', 'telescope': 'Teleskop',
+      'microscope': 'Mikroskop', 'test tube': 'Reagenzglas',
+      'beaker': 'Becherglas', 'flask': 'Kolben',
+      'canteen': 'Feldflasche', 'thermos': 'Thermoskanne',
+      'lunch box': 'Lunchbox', 'tray': 'Tablett',
+      'funnel': 'Trichter', 'hopper': 'Trichter',
+      'spool': 'Spule', 'spindle': 'Spindel',
+      'bow': 'Bogen', 'arrow': 'Pfeil', 'dart': 'Dartpfeil',
+      'yo-yo': 'Jo-Jo', 'kite': 'Drachen',
+      'balloon': 'Luftballon',
+      'piggy bank': 'Sparschwein',
+      'abacus': 'Abakus',
+      'slide rule': 'Rechenschieber',
+    };
+
+    function translateScene(className) {
+      const parts = className.toLowerCase().split(',').map(s => s.trim());
+      for (const part of parts) {
+        if (SCENE_LABELS[part]) return SCENE_LABELS[part];
+      }
+      for (const part of parts) {
+        for (const [key, val] of Object.entries(SCENE_LABELS)) {
+          if (part.includes(key)) return val;
+        }
+      }
+      return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+    }
+
+    let sceneModel = null;
+
+    async function analyzeScene() {
+      if (sceneModel && stream && video.readyState >= 2) {
+        try {
+          const preds = await sceneModel.classify(video, 5);
+          const list = document.getElementById('scene-list');
+          list.innerHTML = '';
+          if (!preds.length) {
+            const empty = document.createElement('span');
+            empty.id = 'no-scene';
+            empty.textContent = 'Nichts erkannt.';
+            list.appendChild(empty);
+          } else {
+            for (const pred of preds) {
+              const score = Math.round(pred.probability * 100);
+              const name  = translateScene(pred.className);
+              const item  = document.createElement('div');
+              item.className = 'object-item';
+              const nameEl = document.createElement('span');
+              nameEl.className = 'object-name';
+              nameEl.textContent = name;
+              const bar  = document.createElement('div');
+              bar.className = 'object-bar';
+              const fill = document.createElement('div');
+              fill.className = 'object-bar-fill';
+              fill.style.width = score + '%';
+              bar.appendChild(fill);
+              const scoreEl = document.createElement('span');
+              scoreEl.className = 'object-score';
+              scoreEl.textContent = score + '%';
+              item.appendChild(nameEl);
+              item.appendChild(bar);
+              item.appendChild(scoreEl);
+              list.appendChild(item);
+            }
+          }
+        } catch (e) { /* ignorieren */ }
+      }
+      setTimeout(analyzeScene, 800);
+    }
+
+    const cellCanvas = document.createElement('canvas');
+    cellCanvas.width  = 224;
+    cellCanvas.height = 224;
+    const cellCtx = cellCanvas.getContext('2d', { willReadFrequently: true });
+
+    async function scanCells() {
+      if (sceneModel && stream && video.readyState >= 2 && video.videoWidth) {
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        const cols = 2, rows = 3;
+        const cw = Math.floor(vw / cols);
+        const ch = Math.floor(vh / rows);
+        const boxes = [];
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col < cols; col++) {
+            cellCtx.drawImage(video, col * cw, row * ch, cw, ch, 0, 0, 224, 224);
+            try {
+              const preds = await sceneModel.classify(cellCanvas, 1);
+              if (preds.length && preds[0].probability >= 0.4) {
+                boxes.push({
+                  label: translateScene(preds[0].className),
+                  score: preds[0].probability,
+                  box:   { x: col * cw, y: row * ch, width: cw, height: ch }
+                });
+              }
+            } catch (e) {}
+          }
+        }
+        latestSceneBoxes = boxes;
+        renderOverlay();
+      }
+      setTimeout(scanCells, 1500);
+    }
+
+    mobilenet.load({ version: 2, alpha: 1.0 }).then(model => {
+      sceneModel = model;
+      document.getElementById('no-scene').textContent = 'Warte auf Kamera…';
+      analyzeScene();
+      scanCells();
+    });
+  </script>
+</body>
+</html>
